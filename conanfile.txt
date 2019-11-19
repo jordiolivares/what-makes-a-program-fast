@@ -1,6 +1,8 @@
 [requires]
 benchmark/1.5.0@_/_
 eigen/3.3.7@conan/stable
+xsimd/7.4.0@omaralvarez/public-conan
+xtensor/0.20.8@omaralvarez/public-conan
 
 [generators]
 cmake
