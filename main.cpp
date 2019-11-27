@@ -37,6 +37,14 @@ std::vector<std::unique_ptr<DataElement>> makeDataElements(int numElements) {
     return dataElements;
 }
 
+std::vector<std::unique_ptr<DataElement>> makeDataElementsSorted(int numElements) {
+    auto elements = makeDataElements(numElements);
+    std::sort(elements.begin(), elements.end(), [](const auto &a, const auto &b) {
+        return a->key < b->key;
+    });
+    return elements;
+}
+
 std::vector<DataElement> makeDataElementsLocal(int numElements) {
     auto elements = makeDataElements(numElements);
     std::vector<DataElement> localElements;
@@ -54,7 +62,7 @@ std::vector<DataElement> makeDataElementsLocalSorted(int numElements) {
     return elements;
 }
 
-Database<float, int, int, int, int, int, int, int> makeDataElementsColumnar(int numElements) {
+Database<float, int, int, int, int, int, int, int> makeDataElementsColumnarSorted(int numElements) {
     auto elements = makeDataElementsLocalSorted(numElements);
     Database<float, int, int, int, int, int, int, int> database;
     for (auto &element : elements) {
@@ -63,8 +71,17 @@ Database<float, int, int, int, int, int, int, int> makeDataElementsColumnar(int 
     return database;
 }
 
+Database<float, int, int, int, int, int, int, int> makeDataElementsColumnar(int numElements) {
+    auto elements = makeDataElementsLocal(numElements);
+    Database<float, int, int, int, int, int, int, int> database;
+    for (auto &element : elements) {
+        database.emplace(element.key, element.filler1, element.filler2, element.filler3, element.filler4, element.filler5, element.filler6, element.filler7);
+    }
+    return database;
+}
+
 static void naiveVersion(benchmark::State &state) {
-    auto elements = makeDataElements(NumElements);
+    auto elements = makeDataElements(state.range(0));
     for (auto _ : state) {
         float total = 0;
         for (auto &element : elements) {
@@ -75,10 +92,10 @@ static void naiveVersion(benchmark::State &state) {
         benchmark::DoNotOptimize(total);
     }
 }
-BENCHMARK(naiveVersion);
+BENCHMARK(naiveVersion)->Range(8, NumElements);
 
 static void localVersion(benchmark::State &state) {
-    auto elements = makeDataElementsLocal(NumElements);
+    auto elements = makeDataElementsLocal(state.range(0));
     for (auto _ : state) {
         float total = 0;
         for (auto &element : elements) {
@@ -89,10 +106,51 @@ static void localVersion(benchmark::State &state) {
         benchmark::DoNotOptimize(total);
     }
 }
-BENCHMARK(localVersion);
+BENCHMARK(localVersion)->Range(8, NumElements);
+
+static void columnarVersion(benchmark::State &state) {
+    auto elements = makeDataElementsColumnar(state.range(0));
+    auto &column = elements.getColumn<0>();
+    for (auto _ : state) {
+        float total = 0;
+        for (auto element : column) {
+            if (element < 0.5) {
+                total += element;
+            }
+        }
+        benchmark::DoNotOptimize(total);
+    }
+}
+BENCHMARK(columnarVersion)->Range(8, NumElements);
+
+static void naiveSortedVersion(benchmark::State &state) {
+    auto elements = makeDataElementsSorted(state.range(0));
+    for (auto _ : state) {
+        float total = 0;
+        for (auto &element : elements) {
+            if (element->key < 0.5) {
+                total += element->key;
+            }
+        }
+        benchmark::DoNotOptimize(total);
+    }
+}
+BENCHMARK(naiveSortedVersion)->Range(8, NumElements);
+
+static void naiveBranchlessVersion(benchmark::State &state) {
+    auto elements = makeDataElements(state.range(0));
+    for (auto _ : state) {
+        float total = 0;
+        for (auto &element : elements) {
+            total += (element->key < 0.5) * element->key;
+        }
+        benchmark::DoNotOptimize(total);
+    }
+}
+BENCHMARK(naiveBranchlessVersion)->Range(8, NumElements);
 
 static void localSortedVersion(benchmark::State &state) {
-    auto elements = makeDataElementsLocalSorted(NumElements);
+    auto elements = makeDataElementsLocalSorted(state.range(0));
     for (auto _ : state) {
         float total = 0;
         for (auto &element : elements) {
@@ -103,10 +161,22 @@ static void localSortedVersion(benchmark::State &state) {
         benchmark::DoNotOptimize(total);
     }
 }
-BENCHMARK(localSortedVersion);
+BENCHMARK(localSortedVersion)->Range(8, NumElements);
+
+static void localBranchlessVersion(benchmark::State &state) {
+    auto elements = makeDataElementsLocal(state.range(0));
+    for (auto _ : state) {
+        float total = 0;
+        for (auto &element : elements) {
+            total += (element.key < 0.5) * element.key;
+        }
+        benchmark::DoNotOptimize(total);
+    }
+}
+BENCHMARK(localBranchlessVersion)->Range(8, NumElements);
 
 static void columnarSortedVersion(benchmark::State &state) {
-    auto elements = makeDataElementsColumnar(NumElements);
+    auto elements = makeDataElementsColumnarSorted(state.range(0));
     auto &column = elements.getColumn<0>();
     for (auto _ : state) {
         auto end = std::find_if(column.begin(), column.end(), [](const auto &a) {
@@ -116,7 +186,7 @@ static void columnarSortedVersion(benchmark::State &state) {
         benchmark::DoNotOptimize(total);
     }
 }
-BENCHMARK(columnarSortedVersion);
+BENCHMARK(columnarSortedVersion)->Range(8, NumElements);
 
 float sum(const float *begin, const float *end) {
     constexpr auto simd_size = xsimd::simd_type<float>::size;
@@ -131,7 +201,7 @@ float sum(const float *begin, const float *end) {
 }
 
 static void columnarLibrarySimdSortedVersion(benchmark::State &state) {
-    auto elements = makeDataElementsColumnar(NumElements);
+    auto elements = makeDataElementsColumnarSorted(state.range(0));
     auto &column = elements.getColumn<0>();
     for (auto _ : state) {
         auto end = std::find_if(column.begin(), column.end(), [](const auto &a) {
@@ -144,10 +214,10 @@ static void columnarLibrarySimdSortedVersion(benchmark::State &state) {
         benchmark::DoNotOptimize(total);
     }
 }
-BENCHMARK(columnarLibrarySimdSortedVersion);
+BENCHMARK(columnarLibrarySimdSortedVersion)->Range(8, NumElements);
 
 static void columnarSimdSortedVersion(benchmark::State &state) {
-    auto elements = makeDataElementsColumnar(NumElements);
+    auto elements = makeDataElementsColumnarSorted(state.range(0));
     auto &column = elements.getColumn<0>();
     for (auto _ : state) {
         auto end = std::find_if(column.begin(), column.end(), [](const auto &a) {
@@ -157,6 +227,6 @@ static void columnarSimdSortedVersion(benchmark::State &state) {
         benchmark::DoNotOptimize(total);
     }
 }
-BENCHMARK(columnarSimdSortedVersion);
+BENCHMARK(columnarSimdSortedVersion)->Range(8, NumElements);
 
 BENCHMARK_MAIN();
