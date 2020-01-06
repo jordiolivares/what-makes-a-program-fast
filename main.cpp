@@ -84,7 +84,7 @@ static void naiveVersion(benchmark::State &state) {
     auto elements = makeDataElements(state.range(0));
     for (auto _ : state) {
         float total = 0;
-        for (auto &element : elements) {
+        for (const auto &element : elements) {
             if (element->key < 0.5) {
                 total += element->key;
             }
@@ -98,7 +98,7 @@ static void localVersion(benchmark::State &state) {
     auto elements = makeDataElementsLocal(state.range(0));
     for (auto _ : state) {
         float total = 0;
-        for (auto &element : elements) {
+        for (const auto &element : elements) {
             if (element.key < 0.5) {
                 total += element.key;
             }
@@ -113,7 +113,7 @@ static void columnarVersion(benchmark::State &state) {
     auto &column = elements.getColumn<0>();
     for (auto _ : state) {
         float total = 0;
-        for (auto element : column) {
+        for (const auto element : column) {
             if (element < 0.5) {
                 total += element;
             }
@@ -127,7 +127,7 @@ static void naiveSortedVersion(benchmark::State &state) {
     auto elements = makeDataElementsSorted(state.range(0));
     for (auto _ : state) {
         float total = 0;
-        for (auto &element : elements) {
+        for (const auto &element : elements) {
             if (element->key < 0.5) {
                 total += element->key;
             }
@@ -141,7 +141,7 @@ static void naiveBranchlessVersion(benchmark::State &state) {
     auto elements = makeDataElements(state.range(0));
     for (auto _ : state) {
         float total = 0;
-        for (auto &element : elements) {
+        for (const auto &element : elements) {
             total += (element->key < 0.5) * element->key;
         }
         benchmark::DoNotOptimize(total);
@@ -153,7 +153,7 @@ static void localSortedVersion(benchmark::State &state) {
     auto elements = makeDataElementsLocalSorted(state.range(0));
     for (auto _ : state) {
         float total = 0;
-        for (auto &element : elements) {
+        for (const auto &element : elements) {
             if (element.key < 0.5) {
                 total += element.key;
             }
@@ -167,7 +167,7 @@ static void localBranchlessVersion(benchmark::State &state) {
     auto elements = makeDataElementsLocal(state.range(0));
     for (auto _ : state) {
         float total = 0;
-        for (auto &element : elements) {
+        for (const auto &element : elements) {
             total += (element.key < 0.5) * element.key;
         }
         benchmark::DoNotOptimize(total);
